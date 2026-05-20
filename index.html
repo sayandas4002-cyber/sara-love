@@ -1,0 +1,261 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Heart + Shooting Star Blast</title>
+  <style>
+    html,body{
+      height:100%;
+      margin:0;
+      overflow:hidden;
+      background:#000;
+    }
+    canvas{
+      position:absolute;
+      top:0;left:0;
+      width:100%;height:100%;
+      display:block;
+    }
+    #stars { z-index:0; }
+    #heart { z-index:1; }
+    #blast { z-index:2; }
+    .msg {
+      position:absolute;
+      transform:translate(-50%,-50%);
+      font-size:2em;
+      font-weight:bold;
+      font-family:'Segoe UI',sans-serif;
+      color:#fff;
+      text-shadow:0 0 20px #ff4d6d, 0 0 40px #ff1a75;
+      opacity:0;
+      transition:opacity 1.5s ease;
+      pointer-events:none;
+    }
+  </style>
+</head>
+<body>
+  <!-- background stars -->
+  <canvas id="stars"></canvas>
+  <!-- heart pulse -->
+  <canvas id="heart"></canvas>
+  <!-- blast & shooting stars -->
+  <canvas id="blast"></canvas>
+
+<script>
+(() => {
+  const starCanvas = document.getElementById('stars');
+  const sctx = starCanvas.getContext('2d');
+
+  const heartCanvas = document.getElementById('heart');
+  const hctx = heartCanvas.getContext('2d');
+
+  const blastCanvas = document.getElementById('blast');
+  const bctx = blastCanvas.getContext('2d');
+
+  const DPR = Math.max(1, window.devicePixelRatio || 1);
+
+  // -------- STAR BACKGROUND ----------
+  let stars = [];
+  function createStars(num){
+    stars=[];
+    for(let i=0;i<num;i++){
+      stars.push({
+        x:Math.random()*starCanvas.width,
+        y:Math.random()*starCanvas.height,
+        r:Math.random()*1.2+0.3,
+        alpha:Math.random(),
+        speed:Math.random()*0.02+0.005
+      });
+    }
+  }
+  function drawStars(){
+    sctx.clearRect(0,0,starCanvas.width,starCanvas.height);
+    sctx.fillStyle="white";
+    for(let star of stars){
+      star.alpha += star.speed*(Math.random()<0.5?-1:1);
+      star.alpha=Math.max(0,Math.min(1,star.alpha));
+      sctx.globalAlpha=star.alpha;
+      sctx.beginPath();
+      sctx.arc(star.x,star.y,star.r,0,Math.PI*2);
+      sctx.fill();
+    }
+    sctx.globalAlpha=1;
+    requestAnimationFrame(drawStars);
+  }
+
+  // -------- HEART ----------
+  let centerX, centerY, SCALE;
+  let angle = 0;
+  let heartPoints = [];
+  let finished = false;
+
+  function heartFunction(t){
+    const sx = 16 * Math.pow(Math.sin(t),3);
+    const sy = 13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t);
+    return [ sx * SCALE, -sy * SCALE ];
+  }
+
+  function drawSingleLine(t){
+    const [x,y] = heartFunction(t);
+    hctx.beginPath();
+    hctx.moveTo(centerX, centerY);
+    hctx.lineTo(centerX + x, centerY + y);
+    hctx.strokeStyle = 'rgba(255,40,70,0.95)';
+    hctx.shadowColor = 'rgba(255,40,70,0.9)';
+    hctx.shadowBlur = 12;
+    hctx.lineWidth = 1.5;
+    hctx.stroke();
+    heartPoints.push([x,y]);
+  }
+
+  function drawOutlineSlow(){
+    if(angle > Math.PI*2){
+      finished = true;
+      requestAnimationFrame(pulse);
+      return;
+    }
+    drawSingleLine(angle);
+    angle += 0.02;
+    setTimeout(drawOutlineSlow, 40);
+  }
+
+  function pulse(){
+    if(!finished) return;
+    hctx.clearRect(0,0,heartCanvas.width,heartCanvas.height);
+    const pulseScale = 1 + 0.05*Math.sin(Date.now()/600);
+    hctx.beginPath();
+    for(let [x,y] of heartPoints){
+      hctx.moveTo(centerX, centerY);
+      hctx.lineTo(centerX + x*pulseScale, centerY + y*pulseScale);
+    }
+    hctx.strokeStyle = 'rgba(255,40,70,0.95)';
+    hctx.shadowColor = 'rgba(255,40,70,0.9)';
+    hctx.shadowBlur = 12;
+    hctx.lineWidth = 1.5;
+    hctx.stroke();
+    requestAnimationFrame(pulse);
+  }
+
+  function resize(){
+    starCanvas.width = heartCanvas.width = blastCanvas.width = Math.floor(window.innerWidth * DPR);
+    starCanvas.height = heartCanvas.height = blastCanvas.height = Math.floor(window.innerHeight * DPR);
+    starCanvas.style.width = heartCanvas.style.width = blastCanvas.style.width = window.innerWidth+'px';
+    starCanvas.style.height = heartCanvas.style.height = blastCanvas.style.height = window.innerHeight+'px';
+    sctx.setTransform(DPR,0,0,DPR,0,0);
+    hctx.setTransform(DPR,0,0,DPR,0,0);
+    bctx.setTransform(DPR,0,0,DPR,0,0);
+
+    centerX = window.innerWidth/2;
+    centerY = window.innerHeight/2 + Math.round(window.innerHeight*0.08);
+    SCALE = Math.min(window.innerWidth, window.innerHeight)/50;
+
+    createStars(200);
+    angle=0; finished=false; heartPoints=[];
+    hctx.clearRect(0,0,heartCanvas.width,heartCanvas.height);
+    drawOutlineSlow();
+  }
+  window.addEventListener('resize', resize, {passive:true});
+  resize();
+  drawStars();
+
+  // -------- BLAST + SHOOTING STAR --------
+  let particles=[];
+  let shootingStars=[];
+
+  function createParticles(x,y){
+    const colors=['#ff4d6d','#ff1a75','#ff9933','#33ccff','#66ff66','#ffff66'];
+    for(let i=0;i<150;i++){
+      particles.push({
+        x:x,y:y,
+        vx:(Math.random()-0.5)*8,
+        vy:(Math.random()-0.5)*8,
+        life:100,
+        color:colors[Math.floor(Math.random()*colors.length)]
+      });
+    }
+  }
+
+  // ⭐ draw star shape
+  function drawStar(ctx, x, y, r, color){
+    ctx.save();
+    ctx.beginPath();
+    ctx.translate(x, y);
+    ctx.moveTo(0, -r);
+    for (let i = 0; i < 5; i++) {
+      ctx.rotate(Math.PI / 5);
+      ctx.lineTo(0, -r * 0.5);
+      ctx.rotate(Math.PI / 5);
+      ctx.lineTo(0, -r);
+    }
+    ctx.closePath();
+    ctx.fillStyle = color;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 25; // বেশি glow
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function animateBlast(){
+    bctx.clearRect(0,0,blastCanvas.width,blastCanvas.height);
+
+    // Draw shooting stars
+    for(let i=shootingStars.length-1;i>=0;i--){
+      let s=shootingStars[i];
+      s.x+=s.vx;
+      s.y+=s.vy;
+      drawStar(bctx, s.x, s.y, 10, "white"); // সাদা উজ্জ্বল তারকা
+      if(Math.abs(s.x-s.tx)<5 && Math.abs(s.y-s.ty)<5){
+        // reached target
+        createParticles(s.tx,s.ty);
+        showMsg(s.tx,s.ty);
+        shootingStars.splice(i,1);
+      }
+    }
+
+    // Draw blast particles
+    for(let i=particles.length-1;i>=0;i--){
+      let p=particles[i];
+      p.x+=p.vx;
+      p.y+=p.vy;
+      p.life--;
+      bctx.beginPath();
+      bctx.arc(p.x,p.y,2,0,Math.PI*2);
+      bctx.fillStyle=p.color;
+      bctx.fill();
+      if(p.life<=0) particles.splice(i,1);
+    }
+
+    requestAnimationFrame(animateBlast);
+  }
+
+  function showMsg(x,y){
+    const msg=document.createElement("div");
+    msg.className="msg";
+    msg.style.left=x+"px";
+    msg.style.top=y+"px";
+    msg.textContent="💞I LOVE YOU SARA 💞";
+    document.body.appendChild(msg);
+    setTimeout(()=>{ msg.style.opacity=1; },50);
+    setTimeout(()=>{ msg.style.opacity=0; msg.remove(); },4000);
+  }
+
+  blastCanvas.addEventListener("click",(e)=>{
+    const rect=blastCanvas.getBoundingClientRect();
+    const tx=e.clientX-rect.left;
+    const ty=e.clientY-rect.top;
+    shootingStars.push({
+      x:tx,
+      y:blastCanvas.height, // নিচ থেকে শুরু
+      tx:tx,
+      ty:ty,
+      vx:0,
+      vy:-8
+    });
+  });
+
+  animateBlast();
+})();
+</script>
+</body>
+</html>
